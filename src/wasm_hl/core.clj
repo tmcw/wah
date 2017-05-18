@@ -6,20 +6,40 @@
   (:require [clojure.test :refer :all])
   (:gen-class))
 
+(def i32-sources (set ['i32.const
+                       'i32.load8_s
+                       'i32.load8_u
+                       'i32.load16_s
+                       'i32.load16_u
+                       'i32.load]))
+(def i64-sources (set ['i64.const
+                       'i64.load8_s
+                       'i64.load8_u
+                       'i64.load16_s
+                       'i64.load16_u
+                       'i64.load32_s
+                       'i64.load32_u
+                       'i64.load]))
+(def f32-sources (set ['f32.const
+                       'f32.load]))
+(def f64-sources (set ['f64.const
+                       'f64.load]))
+
 (def wasm-const (set ['f32.const
                       'f64.const
+                      'i64.const
                       'i32.const]))
 
-(def op-shortcuts {'+ 'f64.add
-                   '- 'f64.sub
-                   '* 'f64.mul
-                   '/ 'f64.div
-                   '== 'f64.eq
-                   '> 'f64.gt
-                   '>= 'f64.ge
-                   '< 'f64.lt
-                   '<= 'f64.le
-                   '= 'set_local})
+(def infix-ops {'+ 'add
+                '- 'sub
+                '* 'mul
+                '/ 'div
+                '== 'eq
+                '> 'gt
+                '>= 'ge
+                '< 'lt
+                '<= 'le})
+
 (def wasm-ops (set ['f32.add
                     'f32.sub
                     'f32.mul
@@ -80,21 +100,26 @@
 
 (with-test
   (defn arrange-triple-list
+    "Rearrange (1 + 1) into (+ 1 1) and (0 = 1) into (set_local 0 1)"
     [expr]
     (let [maybe-op (second expr)]
-      (if (contains? (into wasm-ops (keys op-shortcuts)) maybe-op)
-        (list (maybe-op op-shortcuts maybe-op) (first expr) (last expr))
-        expr)))
+      (cond
+        (contains? (into wasm-ops (keys infix-ops)) maybe-op) (list maybe-op (first expr) (last expr))
+        (= '= maybe-op) (list 'set_local (first expr) (last expr))
+        :else expr)))
   (is (= (arrange-triple-list '(1 = 1)) '(set_local 1 1)))
-  (is (= (arrange-triple-list '(1 == 1)) '(f64.eq 1 1)))
   (is (= (arrange-triple-list '(1 1 1)) '(1 1 1))))
 
 (with-test
   (defn maybe-expand-number
+    "Literal number -> (float|int) constant"
     [x]
-    (if (number? x)
-      (list 'f64.const x) x))
-  (is (= (maybe-expand-number 1) '(f64.const 1)))
+    (cond
+      (float? x) (list 'f64.const x)
+      (integer? x) (list 'i32.const x)
+      :else x))
+  (is (= (maybe-expand-number 1.0) '(f64.const 1.0)))
+  (is (= (maybe-expand-number 1) '(i32.const 1)))
   (is (= (maybe-expand-number ()) '())))
 
 (with-test
@@ -105,7 +130,7 @@
       (list (first expr) (second expr) (maybe-expand-number (last expr)))
       (map maybe-expand-number expr)))
   (is (= (list) (expand-triple-list (list))))
-  (is (= '(set_local $foo (f64.const 0)) (expand-triple-list '(set_local $foo 0)))))
+  (is (= '(set_local $foo (f64.const 0.0)) (expand-triple-list '(set_local $foo 0.0)))))
 
 (with-test
   (defn expand-double-list
@@ -115,40 +140,33 @@
       expr
       (list (first expr) (maybe-expand-number (second expr)))))
   (is (= (expand-double-list '(f64.const 1)) '(f64.const 1)))
-  (is (= (expand-double-list '(f64.abs 1)) '(f64.abs (f64.const 1)))))
+  (is (= (expand-double-list '(f64.abs 1.0)) '(f64.abs (f64.const 1.0)))))
 
 (with-test
   (defn type-to-map
     "Is this statement a local declaration?"
     [param-counter x]
     (condp = (and (seq? x) (first x))
-      'param (assoc nil (swap! param-counter inc) (second x))
-      'local (assoc nil (second x) (last x))
+      'param (assoc {} (swap! param-counter inc) (second x))
+      'local (assoc {} (second x) (last x))
       nil))
 
-  (is (= '{$ent f64} (type-to-map '(local $ent f64)))))
+  (is (= '{$ent f64} (type-to-map (atom 0) '(local $ent f64)))))
 
 (with-test
-  (defn select-type-statements
+  (defn determine-type-map
     "From a top-level wasty tree, find all local statements"
     [expr]
     (let [param-counter (atom -1)]
-      (apply merge
-             (filter some?
-                     (map (partial type-to-map param-counter)
-                          (tree-seq seq? identity expr))))))
-  (is (= (list) (select-local-statements '()))))
-
-(with-test
-  (defn collect-explicit-types
-    "Given a program, find all local declarations and generate a map of their types"
-    [expr]
-    (reduce
-     (fn [types x]
-       (assoc types (second x) (last x)))
-     {}
-     (select-type-statements expr)))
-  (is (= (collect-explicit-types '((local $a f32))) '{$a f32})))
+      (or
+       (apply merge
+              (filter some?
+                      (map (partial type-to-map param-counter)
+                           (tree-seq seq? identity expr)))) {})))
+  (is (= {} (determine-type-map '())))
+  (is (= '{$foo f32} (determine-type-map '(local $foo f32))))
+  (is (= '{0 f32 $foo f32} (determine-type-map '((param f32) (local $foo f32)))))
+  (is (= '{0 f32 1 f64 $foo f32} (determine-type-map '((param f32) (param f64) (local $foo f32))))))
 
 (defn arrange-list
   "Branch based on 2 (expansion) and 3 (expansion & support infix) sized lists"
@@ -176,12 +194,56 @@
      arrange-list
      local-shortcut) expr))
 
-(defn wasm-hl-to-wasm
-  "Transform a wasm hl edn to a wasm edn"
+(defn get-type
   [expr]
-  (w/prewalk
-   transform-tree-node
-   expr))
+  (get (meta expr) :type))
+
+(defn resolve-infix-expression
+  "Resolve (+ (i32.const 0) (i32.const 1)) -> (f32.const (i32.const 0) (i32.const 1))"
+  [expr a b]
+  (cond
+    (= a b) (concat
+             [(symbol (str a "." (get infix-ops (first expr))))]
+             (drop 1 expr))
+    :else (throw (Exception. "Types did not match."))))
+
+(with-test
+  (defn assign-final-types
+    "The first level of abstraction for the tree-walker. Arranges lists, expands shortcuts"
+    [type-map expr]
+    (condp = (list? expr)
+      false expr
+      true (let [op (first expr)]
+             (cond
+               (= 'get_local op) (with-meta expr {:type (get type-map (second expr))})
+               (contains? f64-sources op) (with-meta expr {:type 'f64})
+               (contains? i64-sources op) (with-meta expr {:type 'i64})
+               (contains? f32-sources op) (with-meta expr {:type 'f32})
+               (contains? i32-sources op) (with-meta expr {:type 'i32})
+               (contains? infix-ops op) (resolve-infix-expression expr
+                                                                  (get-type (second expr))
+                                                                  (get-type (last expr)))
+               :else (throw (Exception. "Foo!"))))))
+  (is (= {:type 'f32} (meta (assign-final-types {0 'f32} '(get_local 0)))))
+  (is (= {:type 'i32} (meta (assign-final-types {} '(i32.const 0)))))
+  (is (= {:type 'f32} (meta (assign-final-types {} '(f32.const 0)))))
+  (is (= {:type 'f64} (meta (assign-final-types {} '(f64.const 0)))))
+  (is (= {:type 'i32} (meta (assign-final-types {'$f 'i32} '(get_local $f)))))
+  (is (= () (assign-final-types {} '(+ (f32.const 0) (f32.const 1))))))
+
+(with-test
+  (defn wasm-hl-to-wasm
+    "Transform a wasm hl edn to a wasm edn"
+    [expr]
+    (let [arranged-tree (w/prewalk
+                         transform-tree-node
+                         expr)
+          type-map (determine-type-map arranged-tree)]
+      (w/postwalk
+       (partial assign-final-types type-map)
+       arranged-tree)))
+  (is (= '(i32.add (i32.const 0) (i32.const 0)) (wasm-hl-to-wasm '(0 + 0))))
+  (is (= 'i32 (get (meta (second (wasm-hl-to-wasm '(0 + 0)))) :type))))
 
 (defn -main
   "compile wast-hl to wast"
