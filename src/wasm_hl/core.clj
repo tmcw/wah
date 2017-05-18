@@ -3,6 +3,7 @@
   (:require [clojure.tools.reader.edn :as edn])
   (:require [clojure.walk :as w])
   (:require [clojure.string :as str])
+  (:require [clojure.test :refer :all])
   (:gen-class))
 
 (def wasm-const (set ['f32.const
@@ -19,7 +20,6 @@
                    '< 'f64.lt
                    '<= 'f64.le
                    '= 'set_local})
-
 (def wasm-ops (set ['f32.add
                     'f32.sub
                     'f32.mul
@@ -78,58 +78,110 @@
                     'i32.popcnt
                     'i32.eqz]))
 
-(defn local-shortcut
-  "%$foo -> (get_local $foo)"
-  [expr]
-  (let [s (str expr)]
-    (if (str/starts-with? s "%")
-      (list 'get_local (symbol (subs s 1)))
-      expr)))
+(with-test
+  (defn arrange-triple-list
+    [expr]
+    (let [maybe-op (second expr)]
+      (if (contains? (into wasm-ops (keys op-shortcuts)) maybe-op)
+        (list (maybe-op op-shortcuts maybe-op) (first expr) (last expr))
+        expr)))
+  (is (= (arrange-triple-list '(1 = 1)) '(set_local 1 1)))
+  (is (= (arrange-triple-list '(1 == 1)) '(f64.eq 1 1)))
+  (is (= (arrange-triple-list '(1 1 1)) '(1 1 1))))
 
-(defn arrange-triple-list
-  [expr]
-  (let [maybe-op (second expr)]
-    (if (contains? (into wasm-ops (keys op-shortcuts)) maybe-op)
-      (list (maybe-op op-shortcuts maybe-op) (first expr) (last expr))
-      expr)))
+(with-test
+  (defn maybe-expand-number
+    [x]
+    (if (number? x)
+      (list 'f64.const x) x))
+  (is (= (maybe-expand-number 1) '(f64.const 1)))
+  (is (= (maybe-expand-number ()) '())))
 
-(defn maybe-expand-number
-  [x]
-  (if (number? x)
-    (list 'f64.const x) x))
+(with-test
+  (defn expand-triple-list
+    "Expand triple lists, and support infix if they aren't set_local"
+    [expr]
+    (if (= 'set_local (first expr))
+      (list (first expr) (second expr) (maybe-expand-number (last expr)))
+      (map maybe-expand-number expr)))
+  (is (= (list) (expand-triple-list (list))))
+  (is (= '(set_local $foo (f64.const 0)) (expand-triple-list '(set_local $foo 0)))))
 
-(defn expand-triple-list
-  [expr]
-  (if (= 'set_local (first expr))
-    (list (first expr) (second expr) (maybe-expand-number (last expr)))
-    (map maybe-expand-number expr)))
+(with-test
+  (defn expand-double-list
+    "if a list isn't (f32.const 1), expand bare numbers in it into constants"
+    [expr]
+    (if (contains? wasm-const (first expr))
+      expr
+      (list (first expr) (maybe-expand-number (second expr)))))
+  (is (= (expand-double-list '(f64.const 1)) '(f64.const 1)))
+  (is (= (expand-double-list '(f64.abs 1)) '(f64.abs (f64.const 1)))))
 
-(defn expand-double-list
-  [expr]
-  (if (contains? wasm-const (first expr))
-    expr
-    (list (first expr) (maybe-expand-number (second expr)))))
+(with-test
+  (defn type-to-map
+    "Is this statement a local declaration?"
+    [param-counter x]
+    (condp = (and (seq? x) (first x))
+      'param (assoc nil (swap! param-counter inc) (second x))
+      'local (assoc nil (second x) (last x))
+      nil))
+
+  (is (= '{$ent f64} (type-to-map '(local $ent f64)))))
+
+(with-test
+  (defn select-type-statements
+    "From a top-level wasty tree, find all local statements"
+    [expr]
+    (let [param-counter (atom -1)]
+      (apply merge
+             (filter some?
+                     (map (partial type-to-map param-counter)
+                          (tree-seq seq? identity expr))))))
+  (is (= (list) (select-local-statements '()))))
+
+(with-test
+  (defn collect-explicit-types
+    "Given a program, find all local declarations and generate a map of their types"
+    [expr]
+    (reduce
+     (fn [types x]
+       (assoc types (second x) (last x)))
+     {}
+     (select-type-statements expr)))
+  (is (= (collect-explicit-types '((local $a f32))) '{$a f32})))
 
 (defn arrange-list
+  "Branch based on 2 (expansion) and 3 (expansion & support infix) sized lists"
   [expr]
   ((condp = (count expr)
      2 expand-double-list
      3 (comp expand-triple-list arrange-triple-list)
      identity) expr))
 
-(defn prefixexpression
+(with-test
+  (defn local-shortcut
+    "%$foo -> (get_local $foo)"
+    [expr]
+    (let [s (str expr)]
+      (if (str/starts-with? s "%")
+        (list 'get_local (symbol (subs s 1)))
+        expr)))
+  (is (= (local-shortcut '%$foo) '(get_local $foo)))
+  (is (= (local-shortcut '$foo) '$foo)))
+
+(defn transform-tree-node
+  "The first level of abstraction for the tree-walker. Arranges lists, expands shortcuts"
   [expr]
   ((if (list? expr)
      arrange-list
      local-shortcut) expr))
 
-(defn fixinfix
-  "Move infix operators to prefix"
-  [str]
-  (let [expr (edn/read-string str)]
-    (w/prewalk
-     prefixexpression
-     expr)))
+(defn wasm-hl-to-wasm
+  "Transform a wasm hl edn to a wasm edn"
+  [expr]
+  (w/prewalk
+   transform-tree-node
+   expr))
 
 (defn -main
   "compile wast-hl to wast"
@@ -138,4 +190,4 @@
                                 ["-h" "--help" "Print this help"
                                  :default false :flag true])]
     (clojure.pprint/pprint
-     (fixinfix (slurp (first args))))))
+     (wasm-hl-to-wasm (edn/read-string (slurp (first args)))))))
