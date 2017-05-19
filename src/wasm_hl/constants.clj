@@ -89,3 +89,5 @@
                     'i32.ctz
                     'i32.popcnt
                     'i32.eqz]))
+
+(def all-ops (into wasm-ops (keys infix-ops)))

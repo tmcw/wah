@@ -14,7 +14,7 @@
     [expr]
     (let [maybe-op (second expr)]
       (cond
-        (contains? (into wasm-ops (keys infix-ops)) maybe-op) (list maybe-op (first expr) (last expr))
+        (contains? all-ops maybe-op) (list maybe-op (first expr) (last expr))
         (= '= maybe-op) (list 'set_local (first expr) (last expr))
         :else expr)))
   (is (= (arrange-triple-list '(1 = 1)) '(set_local 1 1)))
@@ -36,8 +36,8 @@
   (defn expand-triple-list
     "Expand triple lists, and support infix if they aren't set_local"
     [expr]
-    (if (= 'set_local (first expr))
-      (list (first expr) (second expr) (maybe-expand-number (last expr)))
+    (condp = (first expr)
+      'set_local (list (first expr) (second expr) (maybe-expand-number (last expr)))
       (map maybe-expand-number expr)))
   (is (= (list) (expand-triple-list (list))))
   (is (= '(set_local $foo (f64.const 0.0)) (expand-triple-list '(set_local $foo 0.0)))))
@@ -69,10 +69,11 @@
     [expr]
     (let [param-counter (atom -1)]
       (or
-       (apply merge
-              (filter some?
-                      (map (partial type-to-map param-counter)
-                           (tree-seq seq? identity expr)))) {})))
+       (->>
+        (tree-seq seq? identity expr)
+        (map (partial type-to-map param-counter))
+        (filter some?)
+        (apply merge)) {})))
   (is (= {} (determine-type-map '())))
   (is (= '{$foo f32} (determine-type-map '(local $foo f32))))
   (is (= '{0 f32 $foo f32} (determine-type-map '((param f32) (local $foo f32)))))
@@ -100,13 +101,16 @@
 (defn transform-tree-node
   "The first level of abstraction for the tree-walker. Arranges lists, expands shortcuts"
   [expr]
-  ((if (list? expr)
+  ((if (seq? expr)
      arrange-list
      local-shortcut) expr))
 
-(defn get-type
-  [expr]
-  (get (meta expr) :type))
+(with-test
+  (defn get-type
+    [expr]
+    (get (meta expr) :type))
+  (is (= 'f64 (get-type (with-meta '(f64.const 0) {:type 'f64}))))
+  (is (= nil (get-type '(f64.const 0)))))
 
 (with-test
   (defn resolve-infix-expression
