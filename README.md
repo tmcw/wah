@@ -1,5 +1,7 @@
 # wah
 
+[![CircleCI](https://circleci.com/gh/tmcw/wah.svg?style=shield)](https://circleci.com/gh/tmcw/wah)
+
 Shortcuts for wasm
 
 | wah       | wasm                                      |
