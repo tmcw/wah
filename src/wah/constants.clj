@@ -3,7 +3,8 @@
                        'i32.load8_u
                        'i32.load16_s
                        'i32.load16_u
-                       'i32.load]))
+                       'i32.load
+                       'i32.abs]))
 (def i64-sources (set ['i64.const
                        'i64.load8_s
                        'i64.load8_u
@@ -11,11 +12,14 @@
                        'i64.load16_u
                        'i64.load32_s
                        'i64.load32_u
-                       'i64.load]))
+                       'i64.load
+                       'i64.abs]))
 (def f32-sources (set ['f32.const
-                       'f32.load]))
+                       'f32.load
+                       'f32.abs]))
 (def f64-sources (set ['f64.const
-                       'f64.load]))
+                       'f64.load
+                       'f64.abs]))
 
 (def wasm-const (set ['f32.const
                       'f64.const

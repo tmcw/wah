@@ -3,9 +3,7 @@
   (:require [clojure.tools.reader.edn :as edn])
   (:require [clojure.walk :as w])
   (:require [clojure.string :as str])
-  (:require [clojure.test :refer :all])
-  (:gen-class))
-
+  (:require [clojure.test :refer :all]) (:gen-class))
 (load "constants")
 
 (with-test
@@ -44,24 +42,30 @@
 
 (with-test
   (defn expand-double-list
-    "if a list isn't (f32.const 1), expand bare numbers in it into constants"
+    "if a list isn't (f32.const 1) or (get_local 1), expand bare numbers in it into constants"
     [expr]
-    (if (contains? wasm-const (first expr))
-      expr
-      (list (first expr) (maybe-expand-number (second expr)))))
+    (cond
+      (contains? wasm-const (first expr)) expr
+      (= 'get_local (first expr)) expr
+      :else (list (first expr) (maybe-expand-number (second expr)))))
+  (is (= (expand-double-list '(get_local 1)) '(get_local 1)))
   (is (= (expand-double-list '(f64.const 1)) '(f64.const 1)))
   (is (= (expand-double-list '(f64.abs 1.0)) '(f64.abs (f64.const 1.0)))))
 
 (with-test
   (defn type-to-map
     "Is this statement a local declaration?"
-    [param-counter x]
+    [x]
     (condp = (and (seq? x) (first x))
-      'param (assoc {} (swap! param-counter inc) (second x))
+      'param (apply merge (map-indexed
+                           (fn [idx, kind]
+                             (assoc {} idx kind))
+                           (drop 1 x)))
       'local (assoc {} (second x) (last x))
       nil))
 
-  (is (= '{$ent f64} (type-to-map (atom 0) '(local $ent f64)))))
+  (is (= '{$ent f64} (type-to-map '(local $ent f64))))
+  (is (= '{0 f64 1 f32 2 i32} (type-to-map '(param f64 f32 i32)))))
 
 (with-test
   (defn determine-type-map
@@ -71,13 +75,13 @@
       (or
        (->>
         (tree-seq seq? identity expr)
-        (map (partial type-to-map param-counter))
+        (map type-to-map)
         (filter some?)
         (apply merge)) {})))
   (is (= {} (determine-type-map '())))
   (is (= '{$foo f32} (determine-type-map '(local $foo f32))))
   (is (= '{0 f32 $foo f32} (determine-type-map '((param f32) (local $foo f32)))))
-  (is (= '{0 f32 1 f64 $foo f32} (determine-type-map '((param f32) (param f64) (local $foo f32))))))
+  (is (= '{0 f32 1 f64 $foo f32} (determine-type-map '((param f32 f64) (local $foo f32))))))
 
 (defn arrange-list
   "Branch based on 2 (expansion) and 3 (expansion & support infix) sized lists"
@@ -91,10 +95,12 @@
   (defn local-shortcut
     "%$foo -> (get_local $foo)"
     [expr]
-    (let [s (str expr)]
-      (if (str/starts-with? s "%")
-        (list 'get_local (symbol (subs s 1)))
-        expr)))
+    (let [s (str expr)
+          bare-identifier (subs s 1)]
+      (cond
+        (str/starts-with? s "%$") (list 'get_local (symbol bare-identifier))
+        (str/starts-with? s "%") (list 'get_local (Integer/parseInt bare-identifier))
+        :else expr)))
   (is (= (local-shortcut '%$foo) '(get_local $foo)))
   (is (= (local-shortcut '$foo) '$foo)))
 
@@ -163,7 +169,17 @@
   (is (= '(i32.add (i32.const 0) (i32.add (i32.const 0) (i32.const 1))) (wah-to-wasm '(0 + (0 + 1)))))
   (is (= '(f64.add (f64.const 0.0) (f64.const 1.0)) (wah-to-wasm '(0.0 + 1.0))))
   (is (= '(func (local $foo f64) (f64.add (f64.const 0.0) (get_local $foo))) (wah-to-wasm '(func (local $foo f64) (0.0 + %$foo)))))
+  (is (= 'i32 (get (meta (second (wah-to-wasm '(0 + 0)))) :type)))
   (is (= 'i32 (get (meta (second (wah-to-wasm '(0 + 0)))) :type))))
+
+(with-test
+  (defn convert-file
+    [st]
+    (wah-to-wasm (edn/read-string (slurp st))))
+  (is (= (edn/read-string (slurp "fixture/1.wast"))  (convert-file "fixture/1.wah")))
+  (is (= (edn/read-string (slurp "fixture/2.wast"))  (convert-file "fixture/2.wah")))
+  (is (= (edn/read-string (slurp "fixture/3.wast"))  (convert-file "fixture/3.wah")))
+  (is (= (edn/read-string (slurp "fixture/4.wast"))  (convert-file "fixture/4.wah"))))
 
 (defn -main
   "compile wast-hl to wast"
@@ -172,4 +188,4 @@
                                 ["-h" "--help" "Print this help"
                                  :default false :flag true])]
     (clojure.pprint/pprint
-     (wah-to-wasm (edn/read-string (slurp (first args)))))))
+     (convert-file (first args)))))

@@ -1,7 +1,7 @@
 (defproject wah "0.1.0-SNAPSHOT"
   :description "Convenience syntax for WAST"
   :url "http://example.com/FIXME"
-  :test-paths ["src"]
+  :test-paths ["src" "test"]
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [
