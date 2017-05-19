@@ -1,4 +1,4 @@
-(ns wasm-hl.core
+(ns wah.core
   (:require [clojure.tools.cli :refer [cli]])
   (:require [clojure.tools.reader.edn :as edn])
   (:require [clojure.walk :as w])
@@ -149,7 +149,7 @@
   (is (= {:type 'i32} (meta (assign-final-types {'$f 'i32} '(get_local $f))))))
 
 (with-test
-  (defn wasm-hl-to-wasm
+  (defn wah-to-wasm
     "Transform a wasm hl edn to a wasm edn"
     [expr]
     (let [arranged-tree (w/prewalk
@@ -159,11 +159,11 @@
       (w/postwalk
        (partial assign-final-types type-map)
        arranged-tree)))
-  (is (= '(i32.add (i32.const 0) (i32.const 0)) (wasm-hl-to-wasm '(0 + 0))))
-  (is (= '(i32.add (i32.const 0) (i32.add (i32.const 0) (i32.const 1))) (wasm-hl-to-wasm '(0 + (0 + 1)))))
-  (is (= '(f64.add (f64.const 0.0) (f64.const 1.0)) (wasm-hl-to-wasm '(0.0 + 1.0))))
-  (is (= '(func (local $foo f64) (f64.add (f64.const 0.0) (get_local $foo))) (wasm-hl-to-wasm '(func (local $foo f64) (0.0 + %$foo)))))
-  (is (= 'i32 (get (meta (second (wasm-hl-to-wasm '(0 + 0)))) :type))))
+  (is (= '(i32.add (i32.const 0) (i32.const 0)) (wah-to-wasm '(0 + 0))))
+  (is (= '(i32.add (i32.const 0) (i32.add (i32.const 0) (i32.const 1))) (wah-to-wasm '(0 + (0 + 1)))))
+  (is (= '(f64.add (f64.const 0.0) (f64.const 1.0)) (wah-to-wasm '(0.0 + 1.0))))
+  (is (= '(func (local $foo f64) (f64.add (f64.const 0.0) (get_local $foo))) (wah-to-wasm '(func (local $foo f64) (0.0 + %$foo)))))
+  (is (= 'i32 (get (meta (second (wah-to-wasm '(0 + 0)))) :type))))
 
 (defn -main
   "compile wast-hl to wast"
@@ -172,4 +172,4 @@
                                 ["-h" "--help" "Print this help"
                                  :default false :flag true])]
     (clojure.pprint/pprint
-     (wasm-hl-to-wasm (edn/read-string (slurp (first args)))))))
+     (wah-to-wasm (edn/read-string (slurp (first args)))))))

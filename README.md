@@ -2,7 +2,7 @@
 
 Shortcuts for wasm
 
-| wasm-hl       | wasm                                      |
+| wah       | wasm                                      |
 |---------------|-------------------------------------------|
 | `(0 = 1)`     | `(set_local 0 (f64.const 0))`             |
 | `(%$a + %$b)` | `(f64.add (get_local $a) (get_local $b))` |
@@ -23,7 +23,7 @@ Shortcuts for wasm
 
 FIXME: explanation
 
-    $ java -jar wasm-hl-0.1.0-standalone.jar [args]
+    $ java -jar wah-0.1.0-standalone.jar [args]
 
 ## Options
 
