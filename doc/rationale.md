@@ -22,3 +22,19 @@ logic required for wah.
 # Could it be implemented in ClojureScript?
 
 Sure! It might even already work in ClojureScript, I just haven't tried yet. PRs welcome!
+
+# Why port Simple Statistics to WebAssembly?
+
+Two reasons: speed is the most obvious, but the other is consistency.
+
+As I've learned from talking to the [stdlib](https://github.com/stdlib-js/stdlib) project,
+one of the things standing in the way from JavaScript being a great environment
+for mathematical reasoning is that the mathematical builtins are inconsistent:
+when you use `Math.sin`, it can use different estimations and have different
+results in different JavaScript environments.
+
+WebAssembly, instead, requires you to write your basics from scratch - even
+just for the error function, I had to write `Math.exp` and `Math.pow` for myself.
+But the rudimentary methods that it does support have guaranteed behavior. So
+you can start lower and make better guarantees about the robustness of the system,
+without making big sacrifices in performance.
