@@ -18,20 +18,7 @@ Shortcuts for wasm
 * Supports type inference by walking up the tree, paying attention to param
   and local types.
 
-## Installation
-
-
-## Usage
-
-FIXME: explanation
-
-    $ java -jar wah-0.1.0-standalone.jar [args]
-
-## Options
-
-## Examples
-
-...
+## [Introduction](docs/intro.md)
 
 ## Open Questions
 
@@ -42,6 +29,15 @@ FIXME: explanation
   f64 and f32?
 * Since source and output is 1:1, can / should we support compilation from
   WAST to WAH too?
+
+## Contributing & open source
+
+This is a PR-only repository: there's no issue tracker.
+
+* To report a bug, open a PR with a failing testcase
+* To propose a feature, open a PR with a failing testcase or an initial implementation
+
+I'll be overjoyed to review & merge PRs!
 
 ## License
 
