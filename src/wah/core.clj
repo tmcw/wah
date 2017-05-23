@@ -274,11 +274,15 @@
 
 (with-test
   (defn get-type
+    "Simple shortcut to get the :type member of the metadata of an object"
     [expr]
     (:type (meta expr)))
   (is (= 'f64 (get-type (merge-meta '(f64.const 0) {:type 'f64}))))
   (is (= nil (get-type '(f64.const 0)))))
 
+; This is the method that transforms shortcuts like + into typed longhand
+; operators like i32.add. It has a little indirection, because i32 operators
+; are signed or unsigned, and we always default to signed.
 (with-test
   (defn resolve-typed-operator
     [operator-type operator]
@@ -362,9 +366,15 @@
    (symbol? (second x))
    (filter (fn [y] (= (first y) 'result) x))))
 
-(defn internal-func-to-type
-  [x]
-  (assoc {} (second x) (second (first (filter (fn [y] (and (seq? y) (= (first y) 'result))) x)))))
+(with-test
+  (defn internal-func-to-type
+    [x]
+    (assoc {}
+           (second x)
+           (second
+            (first
+             (filter (fn [y] (and (seq? y) (= (first y) 'result))) x)))))
+  (is (= (internal-func-to-type '(func $a (result f32))) {'$a 'f32})))
 
 (with-test
   (defn collect-func-types
@@ -394,6 +404,8 @@
 
       (map (partial transform-program-child func-types) wah-program))))
 
+; edn/read-string, if you end the edn object early, just... returns an incomplete
+; object. which is tremendously confusing. I would love to... not do that.
 (with-test
   (defn convert-file
     [st]

@@ -1,0 +1,8 @@
+(module
+  (func
+    (export "f")
+    (local $a f32)
+    (param f64)
+    (result f64)
+    ($a = 0.0)
+    %$a))

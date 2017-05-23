@@ -1,0 +1,6 @@
+(module
+  (func
+    (export "f")
+    (param f64)
+    (result f64)
+    (1.0 / (1.0 + (0.5 * (f64.abs %0))))))

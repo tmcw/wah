@@ -1,0 +1,11 @@
+(module
+  (func $a
+  (param f64)
+  (result f64)
+  (return (0.0 * %0)))
+  (func $b
+  (param i32)
+  (result i32)
+  (return (0 * %0)))
+
+  )
