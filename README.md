@@ -20,7 +20,7 @@ Shortcuts for wasm
 
 ## [Introduction](doc/intro.md)
 
-## [Flow](doc/flow.md)
+## [Flow](doc/flow.txt)
 
 ## [Rationale](doc/rationale.md)
 
