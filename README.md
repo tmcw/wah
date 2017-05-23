@@ -18,17 +18,9 @@ Shortcuts for wasm
 * Supports type inference by walking up the tree, paying attention to param
   and local types.
 
-## [Introduction](docs/intro.md)
+## [Introduction](doc/intro.md)
 
-## Open Questions
-
-* The next big step is _arrays_ and dealing with data. Will we want to introduce
-  new syntax sugar for that too?
-* Right now it only supports floats, indicated by a decimal point, and ints,
-  indicated by not. How could we make it simple to use all number types, so both
-  f64 and f32?
-* Since source and output is 1:1, can / should we support compilation from
-  WAST to WAH too?
+## [Planning](doc/planning.md)
 
 ## Contributing & open source
 
