@@ -39,6 +39,9 @@ and
 (%0 + %1)
 ```
 
+See [the rationale explanation](./rationale.md) for more details about why this
+might be useful and why I built it.
+
 ## The stack
 
 The complete flow of using wah is:
@@ -47,6 +50,8 @@ The complete flow of using wah is:
 * Expand wah to WebAssembly text (WAST) using this project
 * Compile WAST to WASM using [wabt](https://github.com/webassembly/wabt)'s `wast2wasm`
 * Load and run in a browser using the instantiation code like:
+
+See [the flow diagram](./flow.txt) for a graphical explanation.
 
 ```js
 fetch('./output.wasm').then(response =>

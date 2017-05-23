@@ -20,6 +20,10 @@ Shortcuts for wasm
 
 ## [Introduction](doc/intro.md)
 
+## [Flow](doc/flow.md)
+
+## [Rationale](doc/rationale.md)
+
 ## [Planning](doc/planning.md)
 
 ## Contributing & open source
