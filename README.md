@@ -1,6 +1,6 @@
 # wah
 
-[![CircleCI](https://circleci.com/gh/tmcw/wah.svg?style=shield)](https://circleci.com/gh/tmcw/wah)
+[![CircleCI](https://circleci.com/gh/tmcw/wah.svg?style=shield)](https://circleci.com/gh/tmcw/wah) [![Clojars Project](https://img.shields.io/clojars/v/wah.svg)](https://clojars.org/wah)
 
 Shortcuts for wasm
 
