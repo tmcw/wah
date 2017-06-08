@@ -6,7 +6,7 @@ Shortcuts for wasm
 
 | wah       | wasm                                      |
 |---------------|-------------------------------------------|
-| `(0 = 1)`     | `(set_local 0 (f64.const 0))`             |
+| `(0 = 1)`     | `(set_local 0 (i32.const 1))`             |
 | `(%$a + %$b)` | `(f64.add (get_local $a) (get_local $b))` |
 | `(0 + 1)` | `(i32.add (i32.const 0) (i32.const 1))` |
 | `(0.0 + 1.0)` | `(f64.add (f64.const 0) (f64.const 1))` |
